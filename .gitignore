@@ -1,0 +1,39 @@
+CLAUDE.md
+ENTSCHEIDUNGEN.md
+LERNHEFT.md
+PLAN.md
+PRAESENTATION.md
+Prüfung.md
+LERNPLAN.md
+PRUEFUNGSFRAGEN.md
+
+# Maven Build-Artefakte
+target/
+*.class
+
+# iCloud-Sync-Konfliktduplikate (z. B. "target 2", "pom 2.xml") — iCloud hängt " 2"/" 3" an.
+# target/ matcht nur "target" exakt, daher hier ein generelles Sicherheitsnetz:
+* 2
+* 2.*
+* 3
+* 3.*
+
+# IDE-Dateien
+.idea/
+*.iml
+.vscode/
+*.code-workspace
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Secrets / Umgebungsvariablen
+.env
+.env.local
+
+/src/main/resources/privateKey
+/src/main/resources/publicKey
+/.mvn/wrapper/maven-wrapper.jar

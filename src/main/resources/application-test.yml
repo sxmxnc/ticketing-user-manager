@@ -1,0 +1,26 @@
+spring:
+  cloud:
+    stream:
+      bindings:
+        # Test-Destinations mit -Suffix damit Prod- und Test-Queues nicht in Konflikt geraten
+        nutzerEventPublisher-out-0:
+          destination: sweng.events.user.test
+        functionRouter-in-0:
+          destination: sweng.events.user.provisioning.test
+        orderConfirmedEventConsumer-in-0:
+          destination: order.events.test
+
+management:
+  tracing:
+    sampling:
+      probability: 0
+  health:
+    # Im Test nicht vom externen RabbitMQ (CloudAMQP) abhängig machen — sonst wäre
+    # /actuator/health bei fehlender Broker-Verbindung DOWN (503) statt UP (200).
+    rabbit:
+      enabled: false
+    # Spring Cloud Stream registriert zusätzlich einen eigenen Binder-Health-Indikator,
+    # der unabhängig von management.health.rabbit.enabled läuft. In der CI/CD-Pipeline
+    # ist CloudAMQP nicht erreichbar → Binder meldet DOWN → Actuator gibt 503 zurück.
+    binders:
+      enabled: false

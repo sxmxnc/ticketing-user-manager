@@ -1,0 +1,128 @@
+spring:
+  application:
+    name: usermanagement
+
+  # Virtual Threads aktivieren (Java 25)
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    # DB_CLOSE_DELAY=-1: H2-In-Memory-DB bleibt offen, solange die JVM läuft.
+    # Ohne diesen Parameter schließt H2 die DB sobald die letzte Verbindung getrennt wird —
+    # dann würde die H2-Konsole eine leere DB sehen (andere Connection als die App).
+    url: jdbc:h2:mem:userDB;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  jpa:
+    hibernate:
+      ddl-auto: create
+    # defer-datasource-initialization: Hibernate erstellt das Schema ZUERST,
+    # danach wird data.sql ausgeführt — sonst schlägt das INSERT fehl (Tabelle existiert noch nicht).
+    defer-datasource-initialization: true
+    show-sql: true
+
+  sql:
+    init:
+      # always: data.sql bei jedem Start laden (für Entwicklung/Demo-Daten)
+      mode: always
+
+  h2:
+    console:
+      enabled: true
+      settings:
+        # H2-Konsole blockt per Default alle Verbindungen außer von localhost —
+        # im K8s-Cluster greift der Browser über die externe URL zu, nicht über localhost.
+        web-allow-others: true
+
+  cloud:
+    # function.definition: bindet neben dem eingebauten functionRouter (Saga-Replies, Routing per
+    # Routing-Key) zusätzlich den benannten Consumer orderConfirmedEventConsumer (Kauf → CUSTOMER).
+    # functionRouter muss hier mit aufgeführt werden, sobald definition gesetzt ist, sonst wird er
+    # nicht mehr gebunden.
+    function:
+      definition: functionRouter;orderConfirmedEventConsumer
+    stream:
+      function:
+        # functionRouter ist der eingebaute Spring-Cloud-Function-Router.
+        # Er empfängt alle Nachrichten auf functionRouter-in-0 und leitet sie anhand
+        # des MessageRoutingCallback an den richtigen Consumer-Bean weiter.
+        routing:
+          enabled: true
+      bindings:
+        # Ausgehend: Domain-Events des UserManagers (Registrierung, Löschung, Sperrung)
+        nutzerEventPublisher-out-0:
+          destination: sweng.events.user
+        # Eingehend: Saga-Reply-Events des EventManagers (user.provisioned / user.provisioning.failed)
+        # auf einer Queue; der functionRouter trennt sie per Routing-Key (MessagingConfiguration)
+        functionRouter-in-0:
+          destination: sweng.events.user.provisioning
+        # Eingehend: order.confirmed von Order/Ticketing → Käufer wird CUSTOMER (Kauf-Choreographie)
+        orderConfirmedEventConsumer-in-0:
+          destination: order.events
+      rabbit:
+        bindings:
+          nutzerEventPublisher-out-0:
+            producer:
+              # transacted: Publish und DB-Commit gehen zusammen (Eventual Consistency)
+              transacted: true
+              # Routing-Key je Event aus dem Header 'routingKey' (vom RabbitMqEventPublisher gesetzt):
+              # user.registered / user.blocked / user.deleted — so können Consumer gezielt filtern.
+              routing-key-expression: headers['routingKey']
+          functionRouter-in-0:
+            consumer:
+              # transacted: bei Verarbeitungsfehler Rollback und Redelivery
+              transacted: true
+              # max-attempts: 3 Zustellversuche; danach wird die Nachricht verworfen.
+              # Eine echte Dead-Letter-Queue wäre optional über autoBindDlq: true möglich
+              # (bewusst nicht aktiviert, da das eine zusätzliche Queue auf CloudAMQP anlegen würde).
+              max-attempts: 3
+          orderConfirmedEventConsumer-in-0:
+            consumer:
+              # order.events ist eine Topic-Exchange und trägt auch order.created/order.cancelled —
+              # wir binden NUR order.confirmed, damit wir ausschließlich auf bezahlte Käufe reagieren.
+              bindingRoutingKey: order.confirmed
+              exchangeType: topic
+              transacted: true
+              max-attempts: 3
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
+server:
+  address: 127.0.0.1
+  port: 8080
+
+management:
+  tracing:
+    sampling:
+      probability: 0
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  packages-to-scan: de.fhms.sweng.usermanagement
+  paths-to-match: /rest/**
+
+# JWT-Konfiguration: Gültigkeitsdauer eines ausgestellten Tokens
+security:
+  jwt:
+    token:
+      expire-length: 3600000   # in Millisekunden (= 1 Stunde)
+
+logging:
+  level:
+    de.fhms.sweng: DEBUG
+    org.springframework.amqp: DEBUG
+  pattern:
+    level: "%5p [${spring.application.name},%X{traceId:-},%X{spanId:-}]"
