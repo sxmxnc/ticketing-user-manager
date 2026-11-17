@@ -59,9 +59,11 @@ spring:
         # auf einer Queue; der functionRouter trennt sie per Routing-Key (MessagingConfiguration)
         functionRouter-in-0:
           destination: sweng.events.user.provisioning
+          group: ticketing-user-manager
         # Eingehend: order.confirmed von Order/Ticketing → Käufer wird CUSTOMER (Kauf-Choreographie)
         orderConfirmedEventConsumer-in-0:
           destination: order.events
+          group: ticketing-user-manager
       rabbit:
         bindings:
           nutzerEventPublisher-out-0:

@@ -23,16 +23,18 @@ export RABBITMQ_PASSWORD="$(openssl rand -hex 24)"
 docker run --rm -d --name ticketing-demo-rabbit \
   -e RABBITMQ_DEFAULT_USER="$RABBITMQ_USERNAME" \
   -e RABBITMQ_DEFAULT_PASS="$RABBITMQ_PASSWORD" \
-  -p 127.0.0.1:5672:5672 rabbitmq:4
+  -p 127.0.0.1:5672:5672 rabbitmq:4-alpine
 docker exec ticketing-demo-rabbit rabbitmq-diagnostics -q await_startup
 ./mvnw spring-boot:run
 ```
 
 Die Swagger-Oberfläche ist unter http://localhost:8080/swagger-ui.html
-erreichbar. Die H2-Datenbank wird bei jedem Start neu angelegt.
+erreichbar. Die H2-Datenbank wird bei jedem Start neu angelegt. Beide empfangenden Bindungen
+verwenden die Consumer-Gruppe `ticketing-user-manager` für dauerhafte Queues.
 
 1. Mit einer fiktiven Adresse wie `person@example.test` ein Konto über
-   `POST /rest/users/register` anlegen. Konto-ID und Status stehen in der Antwort.
+   `POST /rest/users/register` anlegen. Dafür sind auch Vorname, Nachname und
+   Passwort erforderlich. Die Antwort enthält Konto-ID und Status.
 2. Über `POST /rest/users/login` als `admin@example.test` mit dem lokalen
    Demo-Passwort `DemoPasswort1!` anmelden. Den zurückgegebenen Token in Swagger
    unter **Authorize** eintragen.
